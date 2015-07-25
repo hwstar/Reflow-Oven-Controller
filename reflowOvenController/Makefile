@@ -2,7 +2,7 @@ RDUINO_DIR = /usr/share/arduino
 #BOARD_TAG    = nano328
 BOARD_TAG = pro328
 ARDUINO_PORT = /dev/ftdicable
-ARDUINO_LIBS = LiquidCrystal MAX31855 ArduinoPIDLibrary
+ARDUINO_LIBS = MAX31855 ArduinoPIDLibrary AdafruitGFXLibrary AdafruitPCD8544Nokia5110LCDlibrary SPI
 
 include /usr/share/arduino/Arduino.mk
 
