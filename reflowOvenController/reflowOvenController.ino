@@ -132,16 +132,31 @@ typedef struct
 #define SWITCH_2 0x2
 
 // ***** CONSTANTS *****
+///#define TC_CALIB 0
+///#define TEMPERATURE_ROOM 50
+///#define TEMPERATURE_SOAK_MIN 150
+///#define TEMPERATURE_SOAK_MAX 180
+///#define TEMPERATURE_REFLOW_MAX 250
+///#define TEMPERATURE_COOL_MIN 100
+///#define SENSOR_SAMPLING_TIME 1000
+///#define SOAK_TEMPERATURE_STEP 5
+///#define SOAK_MICRO_PERIOD 9000
+///#define DEBOUNCE_PERIOD_MIN 50
+
+
+
+// ***** CONSTANTS *****
 #define TC_CALIB 0
 #define TEMPERATURE_ROOM 50
 #define TEMPERATURE_SOAK_MIN 150
 #define TEMPERATURE_SOAK_MAX 180
-#define TEMPERATURE_REFLOW_MAX 250
-#define TEMPERATURE_COOL_MIN 100
+#define TEMPERATURE_REFLOW_MAX 225
+#define TEMPERATURE_COOL_MIN 210
 #define SENSOR_SAMPLING_TIME 1000
-#define SOAK_TEMPERATURE_STEP 5
-#define SOAK_MICRO_PERIOD 9000
+#define SOAK_TEMPERATURE_STEP 3
+#define SOAK_MICRO_PERIOD 13000
 #define DEBOUNCE_PERIOD_MIN 50
+
 
 // ***** PID PARAMETERS *****
 // ***** PRE-HEAT STAGE *****
@@ -438,8 +453,6 @@ redo_measurement:
     // If reflow process is on going
     if (reflowStatus == REFLOW_STATUS_ON)
     {
-      // Toggle red LED as system heart beat
-      ///digitalWrite(ledRedPin, !(digitalRead(ledRedPin)));
       // Increase seconds timer for reflow curve analysis
       timerSeconds++;
       // Increase phase seconds timer for display purposes
@@ -556,7 +569,6 @@ redo_measurement:
       // Ramp down to minimum cooling temperature
       setpoint = TEMPERATURE_COOL_MIN;   
       // Proceed to cooling state
-      digitalWrite(convectionFanPin, HIGH);
       phaseSeconds = 0;
       reflowState = REFLOW_STATE_COOL; 
     }
@@ -571,8 +583,8 @@ redo_measurement:
       // Turn on buzzer and green LED to indicate completion
 
 	  digitalWrite(buzzerPin, HIGH);
+	  digitalWrite(convectionFanPin, HIGH);
       // Turn off reflow process
-      digitalWrite(convectionFanPin, LOW);
       reflowStatus = REFLOW_STATUS_OFF;                
       // Proceed to reflow Completion state
       phaseSeconds = 0;
@@ -595,6 +607,7 @@ redo_measurement:
 		if (input < TEMPERATURE_ROOM)
 		{
 			// Ready to reflow
+			digitalWrite(convectionFanPin, LOW);
 			reflowState = REFLOW_STATE_IDLE;
 		}
 		break;
