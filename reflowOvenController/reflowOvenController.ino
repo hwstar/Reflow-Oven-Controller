@@ -150,8 +150,8 @@ typedef struct
 #define TEMPERATURE_ROOM 50
 #define TEMPERATURE_SOAK_MIN 150
 #define TEMPERATURE_SOAK_MAX 180
-#define TEMPERATURE_REFLOW_MAX 225
-#define TEMPERATURE_COOL_MIN 210
+#define TEMPERATURE_REFLOW_MAX 235
+#define TEMPERATURE_COOL_MIN 225
 #define SENSOR_SAMPLING_TIME 1000
 #define SOAK_TEMPERATURE_STEP 3
 #define SOAK_MICRO_PERIOD 13000
@@ -418,6 +418,7 @@ redo_measurement:
 		Serial.println(output);
 
 		// Update display
+		// Turn LED off during display update
 		digitalWrite(LEDPin, HIGH);
 		
 		display.setContrast(50);
@@ -442,7 +443,10 @@ redo_measurement:
 		digitalWrite(lcdCLKPin, HIGH); // Crude way of sharing the clock line
 		digitalWrite(lcdCLKPin, LOW); 
 		
-		digitalWrite(LEDPin, LOW);
+		
+		// LED on if not idle
+		if(reflowState != REFLOW_STATE_IDLE)
+			digitalWrite(LEDPin, LOW);
   }
   
 
