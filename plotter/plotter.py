@@ -92,7 +92,12 @@ def main():
 
   # set up animation
   fig = plt.figure()
+  fig.suptitle('Reflow profile', fontsize=20)
+
   ax = plt.axes(xlim=(0, 500), ylim=(0, 300))
+  plt.xlabel('Time', fontsize=12)
+  plt.ylabel('Temperature (deg. C)', fontsize=12)
+
   a0, = ax.plot([], [])
   a1, = ax.plot([], [])
   anim = animation.FuncAnimation(fig, analogPlot.update,
