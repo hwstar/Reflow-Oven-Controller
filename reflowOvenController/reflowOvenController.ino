@@ -96,6 +96,8 @@
 #include <MAX31855.h>
 #include <PID_v1.h>
 
+#define CONTRAST 60
+
 // ***** TYPE DEFINITIONS *****
 typedef enum REFLOW_STATE
 {
@@ -103,9 +105,9 @@ typedef enum REFLOW_STATE
   REFLOW_STATE_PREHEAT,
   REFLOW_STATE_SOAK,
   REFLOW_STATE_REFLOW,
+  REFLOW_STATE_BEEP,
   REFLOW_STATE_COOL,
-  REFLOW_STATE_COMPLETE,
-	REFLOW_STATE_TOO_HOT,
+  REFLOW_STATE_TOO_HOT,
   REFLOW_STATE_ERROR,
   REFLOW_STATE_TEST
 } reflowState_t;
@@ -131,30 +133,49 @@ typedef struct
 #define SWITCH_1 0x1
 #define SWITCH_2 0x2
 
+//#define ORIG_CONST
+
+#ifdef ORIG_CONST
 // ***** CONSTANTS *****
-///#define TC_CALIB 0
-///#define TEMPERATURE_ROOM 50
-///#define TEMPERATURE_SOAK_MIN 150
-///#define TEMPERATURE_SOAK_MAX 180
-///#define TEMPERATURE_REFLOW_MAX 250
-///#define TEMPERATURE_COOL_MIN 100
-///#define SENSOR_SAMPLING_TIME 1000
-///#define SOAK_TEMPERATURE_STEP 5
-///#define SOAK_MICRO_PERIOD 9000
-///#define DEBOUNCE_PERIOD_MIN 50
+#define TC_CALIB 0
+#define TEMPERATURE_ROOM 50
+#define TEMPERATURE_SOAK_MIN 150
+#define TEMPERATURE_SOAK_MAX 180
+#define TEMPERATURE_REFLOW_MAX 250
+#define TEMPERATURE_COOL_MIN 100
+#define SENSOR_SAMPLING_TIME 1000
+#define SOAK_TEMPERATURE_STEP 5
+#define SOAK_MICRO_PERIOD 9000
+#define DEBOUNCE_PERIOD_MIN 50
 
 
+/// ***** PID PARAMETERS *****
+/// ***** PRE-HEAT STAGE *****
+#define PID_KP_PREHEAT 100
+#define PID_KI_PREHEAT 0.025
+#define PID_KD_PREHEAT 20
+/// ***** SOAKING STAGE *****
+#define PID_KP_SOAK 300
+#define PID_KI_SOAK 0.05
+#define PID_KD_SOAK 250
+/// ***** REFLOW STAGE *****
+#define PID_KP_REFLOW 300
+#define PID_KI_REFLOW 0.05
+#define PID_KD_REFLOW 350
+#define PID_SAMPLE_TIME 1000
+
+#else // Tweaked constants
 
 // ***** CONSTANTS *****
 #define TC_CALIB 0
 #define TEMPERATURE_ROOM 50
 #define TEMPERATURE_SOAK_MIN 150
 #define TEMPERATURE_SOAK_MAX 180
-#define TEMPERATURE_REFLOW_MAX 235
-#define TEMPERATURE_COOL_MIN 225
+#define TEMPERATURE_REFLOW_MAX 250
+#define TEMPERATURE_COOL_MIN 180
 #define SENSOR_SAMPLING_TIME 1000
-#define SOAK_TEMPERATURE_STEP 3
-#define SOAK_MICRO_PERIOD 13000
+#define SOAK_TEMPERATURE_STEP 5
+#define SOAK_MICRO_PERIOD 9000
 #define DEBOUNCE_PERIOD_MIN 50
 
 
@@ -173,22 +194,22 @@ typedef struct
 #define PID_KD_REFLOW 350
 #define PID_SAMPLE_TIME 1000
 
+#endif
+
 // ***** LCD MESSAGES *****
 const char* lcdMessagesReflowStatus[] = {
   "Ready",
   "Pre-heat",
   "Soak",
   "Reflow",
+  "Peak Temp",
   "Cool",
-  "Complete",
-	"Wait,hot",
+  "Wait,hot",
   "Error",
   "Test"
 };
 
-// ***** DEGREE SYMBOL FOR LCD *****
-unsigned char degree[8]  = {
-  140,146,146,140,128,128,128,128};
+
 
 // ***** PIN ASSIGNMENT *****
 uint8_t ElementPin = 2;
@@ -272,7 +293,7 @@ void setup()
   display.begin(); // Flash ADI logo as quickly as possible
   delay(100);
   display.clearDisplay();
-  display.setContrast(50);
+  display.setContrast(CONTRAST);
   
   // Our splash
   display.clearDisplay();
@@ -421,7 +442,7 @@ redo_measurement:
 		// Turn LED off during display update
 		digitalWrite(LEDPin, HIGH);
 		
-		display.setContrast(50);
+		display.setContrast(CONTRAST);
 		display.clearDisplay();
 		display.setTextSize(1);
 		display.setCursor(0,0);
@@ -540,6 +561,7 @@ redo_measurement:
       // Proceed to soaking state
       phaseSeconds = 0;
       reflowState = REFLOW_STATE_SOAK; 
+      //reflowState = REFLOW_STATE_COOL; // DEBUG
     }
     break;
 
@@ -568,15 +590,25 @@ redo_measurement:
     // Crude method that works like a charm and safe for the components
     if (input >= (TEMPERATURE_REFLOW_MAX - 5))
     {
+	  digitalWrite(buzzerPin, true);
+	  buzzerPeriod = millis() + 1000;
       // Set PID parameters for cooling ramp
       reflowOvenPID.SetTunings(PID_KP_REFLOW, PID_KI_REFLOW, PID_KD_REFLOW);
       // Ramp down to minimum cooling temperature
       setpoint = TEMPERATURE_COOL_MIN;   
       // Proceed to cooling state
       phaseSeconds = 0;
-      reflowState = REFLOW_STATE_COOL; 
+      reflowState = REFLOW_STATE_BEEP; 
     }
     break;   
+    
+  case REFLOW_STATE_BEEP:
+	// Beep at peak temperature
+	if(millis() > buzzerPeriod){
+		digitalWrite(buzzerPin, false);
+		reflowState = REFLOW_STATE_COOL;
+	}
+	break;
 
   case REFLOW_STATE_COOL:
     // If minimum cool temperature is achieve       
@@ -586,27 +618,17 @@ redo_measurement:
       buzzerPeriod = millis() + 1000;
       // Turn on buzzer and green LED to indicate completion
 
-	  digitalWrite(buzzerPin, HIGH);
 	  digitalWrite(convectionFanPin, HIGH);
       // Turn off reflow process
       reflowStatus = REFLOW_STATUS_OFF;                
       // Proceed to reflow Completion state
       phaseSeconds = 0;
-      reflowState = REFLOW_STATE_COMPLETE; 
+      reflowState = REFLOW_STATE_IDLE; 
     }         
     break;    
 
-  case REFLOW_STATE_COMPLETE:
-    if (millis() > buzzerPeriod)
-    {
-      // Turn off buzzer and green LED
-      digitalWrite(buzzerPin, LOW);
-	  // Reflow process ended
-      reflowState = REFLOW_STATE_IDLE; 
-    }
-    break;
 	
-	case REFLOW_STATE_TOO_HOT:
+   case REFLOW_STATE_TOO_HOT:
 		// If oven temperature drops below room temperature
 		if (input < TEMPERATURE_ROOM)
 		{
